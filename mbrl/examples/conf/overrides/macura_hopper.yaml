@@ -1,5 +1,4 @@
-# @package _group_
-env: "gym___Hopper-v4"
+env: "gym___Hopper-v5"
 term_fn: "hopper"
 
 num_steps: 150000
@@ -17,7 +16,7 @@ effective_model_rollouts_per_step: 400
 num_sac_updates_per_step: 30
 sac_updates_every_steps: 1
 num_epochs_to_retain_sac_buffer: 1
-
+trial_length: 1000
 minimum_variance_exponent: -10
 
 sac_buffer_size: 2000000

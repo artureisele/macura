@@ -1,5 +1,4 @@
-# @package _group_
-env: "gym___HalfCheetah-v4"
+env: "gym___HalfCheetah-v5"
 term_fn: "no_termination"
 
 num_steps: 400000
@@ -17,9 +16,9 @@ effective_model_rollouts_per_step: 200
 num_sac_updates_per_step: 10
 sac_updates_every_steps: 1
 num_epochs_to_retain_sac_buffer: 1
-trial_length: 1000
 minimum_variance_exponent: -6
 sac_buffer_size: 1000000
+trial_length: 1000
 
 
 

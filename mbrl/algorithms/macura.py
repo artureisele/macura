@@ -314,13 +314,10 @@ def train(
         reward_type=dtype,
     )
 
-    real_experienced_states_full = []
-
     # -------------- Gather initial data using random or random initialized SAC-Agent --------------
     random_explore = cfg.algorithm.random_initial_explore
 
-    mbrl.util.common.rollout_agent_trajectories_Tracking_States(
-        real_experienced_states_full,
+    mbrl.util.common.rollout_agent_trajectories(
         env,
         cfg.algorithm.initial_exploration_steps,
         mbrl.planning.RandomAgent(env) if random_explore else agent,

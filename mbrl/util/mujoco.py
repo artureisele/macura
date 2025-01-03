@@ -117,8 +117,8 @@ class MujocoEnvHandler(EnvHandler):
 
         """
         state = (
-            env.env.data.qpos.ravel().copy(),
-            env.env.data.qvel.ravel().copy(),
+            env.unwrapped.data.qpos.ravel().copy(),
+            env.unwrapped.data.qvel.ravel().copy(),
         )
         elapsed_steps = env._elapsed_steps
         return state, elapsed_steps

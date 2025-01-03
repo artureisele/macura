@@ -54,12 +54,11 @@ def _legacy_make_env(
     if test_env:
         render_mode = None
     if "dmcontrol___" in cfg.overrides.env:
-        import mbrl.third_party.dmc2gym as dmc2gym
+        from mbrl.third_party.dmc2gymnasium.DMCGymnamsium import DMCGymnasium
 
         domain, task = cfg.overrides.env.split("___")[1].split("--")
         term_fn, reward_fn = _get_term_and_reward_fn(cfg)
-        env = dmc2gym.make(domain_name=domain, task_name=task)
-        env = gym.make("GymV26Environment-v0", env=env)
+        env = DMCGymnasium(domain=domain, task=task)
 
     elif "gym___" in cfg.overrides.env:
         env = gym.make(cfg.overrides.env.split("___")[1], render_mode=render_mode)
@@ -78,6 +77,15 @@ def _legacy_make_env(
         elif cfg.overrides.env == "humanoid_truncated_obs":
             env = mbrl.env.mujoco_envs.HumanoidTruncatedObsEnv(render_mode=render_mode)
             term_fn = mbrl.env.termination_fns.humanoid
+            reward_fn = None
+        elif cfg.overrides.env == "humanoid_v5_truncated_obs":
+            env = gym.make("Humanoid-v5",render_mode=render_mode,exclude_current_positions_from_observation = True, include_cinert_in_observation=False, include_cvel_in_observation = False, include_qfrc_actuator_in_observation=False, include_cfrc_ext_in_observation=False)
+            term_fn = mbrl.env.termination_fns.humanoid
+            reward_fn = None
+            print("Humanoid V5 Truncated Obs!!!")
+        elif cfg.overrides.env == "ant_v5_truncated_obs":
+            env = gym.make("Ant-v5",render_mode=render_mode,exclude_current_positions_from_observation = True, include_cfrc_ext_in_observation=False)
+            term_fn = mbrl.env.termination_fns.ant
             reward_fn = None
         else:
             raise ValueError("Invalid environment string.")

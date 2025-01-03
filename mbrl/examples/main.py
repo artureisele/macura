@@ -9,7 +9,7 @@ import mbrl.algorithms.m2ac as m2ac
 
 import mbrl.util.env
 
-@hydra.main(config_path="conf", config_name="main")
+@hydra.main(config_path="conf", config_name="main", version_base="1.1")
 def run(cfg: omegaconf.DictConfig):
     # creates environment and the termination and reward function of environment
     # Therefore it uses cfg.overrides.env : gym___HalfCheetah-v2, where gym refers to the OpenAIGym and after ___ you
