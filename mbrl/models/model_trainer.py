@@ -48,12 +48,15 @@ class ModelTrainer:
         weight_decay: float = 1e-5,
         optim_eps: float = 1e-8,
         logger: Optional[Logger] = None,
+        track_wandb:bool= False,
+        wandb= None
     ):
         self.epoch = 0
         self.train_round = 0
         self.model = model
         self._train_iteration = 0
-
+        self.track_wandb = track_wandb
+        self.wandb = wandb
         self.logger = logger
         if self.logger:
             self.logger.register_group(
@@ -200,7 +203,21 @@ class ModelTrainer:
                         else 0,
                     },
                 )
-
+            if self.track_wandb:
+                self.wandb.log(
+                            data = {
+                                    "model_train/epoch": self.epoch,
+                                    "model_train/train_dataset_size": dataset_train.num_stored,
+                                    "model_train/val_dataset_size": dataset_val.num_stored
+                                                                    if dataset_val is not None
+                                                                    else 0,
+                                    "model_train/model_loss": total_avg_loss,
+                                    "model_train/model_val_score": model_val_score,
+                                    "model_train/model_best_val_score": best_val_score.mean()
+                                                                        if best_val_score is not None
+                                                                        else 0,
+                                },
+                )
             if callback:
                 callback(
                     self.model,
@@ -214,7 +231,13 @@ class ModelTrainer:
             if patience and epochs_since_update >= patience:
                 break
         n_epochs = self.epoch - prev_epoch
-
+        if self.track_wandb:
+            self.wandb.log(
+                    data = {
+                            "model_train_round/env_step": self.train_round * train_period,
+                            "model_train_round/epochs_trained": n_epochs
+                            },
+                )
         # saving the best models:
         if evaluate:
             self._maybe_set_best_weights_and_elite(best_weights, best_val_score)

@@ -45,6 +45,8 @@ def rollout_model_and_populate_sac_buffer(
         pink_noise_exploration_mod: bool=False,
         xi:float = 1.0,
         zeta: int = 95,
+        track_wandb: bool=False,
+        wandb = None
 
 ):
     """Generates rollouts to create simulated trainings data for sac agent. These rollouts are used to populate the
@@ -180,7 +182,21 @@ def rollout_model_and_populate_sac_buffer(
             initial_obs_batch=cast(np.ndarray, obs),
             return_as_np=True,
         )
-
+    if track_wandb:
+        RL_hist = np.histogram(rollout_tracker, bins=max_rollout_length, density=True)
+        data = {
+            "rollout/env_step": env_steps,
+            "rollout/average_length": np.mean(rollout_tracker),
+            "rollout/minimum_length": np.min(rollout_tracker),
+            "rollout/maximum_length": np.max(rollout_tracker),
+            "rollout/added_transitions": new_sac_size,
+            "rollout/transitions_stored": sac_buffer.num_stored,
+            "rollout/rollout_length_histogram": wandb.Histogram(np_histogram=RL_hist)
+        }
+        data["rolloutUnc/env_step"] = env_steps
+        data["rolloutUnc/uncert_threshold_this_round"] = border_for_this_rollout
+        data["rolloutUnc/uncert_threshold"] = threshold
+        wandb.log(data=data)
     return new_sac_size, border_for_this_rollout
 
 
@@ -269,6 +285,70 @@ def train(
     # ------------------- Create SAC Agent -------------------
     mbrl.planning.complete_agent_cfg(env, cfg.algorithm.agent)
     agent = SACAgent(pytorch_sac_pranz24.SAC(cfg.algorithm.agent.num_inputs, env.action_space, cfg.algorithm.agent.args))
+
+    wandb = None
+    if cfg.track_wandb:
+        import wandb
+        wnb_cfg = OmegaConf.to_container(
+            cfg, resolve=False, throw_on_missing=False
+        )
+        # -------------------------------------------------------------------#
+        # The WANDB settings for the MACURA Algorithm
+        wandb_run = wandb.init(
+            # set the wandb project name where this run will be logged online
+            project=cfg.wandb_project,
+            config=wnb_cfg,
+            job_type="macura",
+            group=cfg.overrides.env,
+            name=cfg.experiment
+        )
+
+        wandb.define_metric("rollout/env_step")
+        wandb.define_metric("rollout/average_length", step_metric="rollout/env_step")
+        wandb.define_metric("rollout/minimum_length", step_metric="rollout/env_step")
+        wandb.define_metric("rollout/maximum_length", step_metric="rollout/env_step")
+        wandb.define_metric("rollout/added_transitions", step_metric="rollout/env_step")
+        wandb.define_metric("rollout/rollout_length_histogram", step_metric="rollout/env_step")
+        wandb.define_metric("rollout/transitions_stored", step_metric="rollout/env_step")
+
+        wandb.define_metric("rolloutUnc/env_step")
+        wandb.define_metric("rolloutUnc/uncert_threshold_this_round", step_metric="rolloutUnc/env_step")
+        wandb.define_metric("rolloutUnc/uncert_threshold", step_metric="rolloutUnc/env_step")
+        for i in range(1, max_rollout_length + 1):
+            wandb.define_metric(f"rolloutUnc/uncert_total_R{i}", step_metric="rolloutUnc/env_step")
+
+        wandb.define_metric("agent_train/step")
+        wandb.define_metric("agent_train/batch_reward", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/batch_reward_min", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/batch_reward_max", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/actor_loss", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/actor_target_entropy", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/critic_loss", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/critic_loss_network1", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/critic_loss_network2", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/alpha_loss", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/alpha_value", step_metric="agent_train/step")
+        wandb.define_metric("agent_train/actor_entropy", step_metric="agent_train/step")
+
+        wandb.define_metric("agent_eval/env_step")
+        wandb.define_metric("agent_eval/episode_reward", step_metric="agent_eval/env_step")
+
+        wandb.define_metric("Stationary/steps")
+        wandb.define_metric("Stationary/mmd")
+        wandb.define_metric("Stationary/mmd2")
+
+        wandb.define_metric("model_train/epoch")
+        wandb.define_metric("model_train/train_dataset_size", step_metric="model_train/epoch")
+        wandb.define_metric("model_train/val_dataset_size", step_metric="model_train/epoch")
+        wandb.define_metric("model_train/model_loss", step_metric="model_train/epoch")
+        wandb.define_metric("model_train/model_val_score", step_metric="model_train/epoch")
+        wandb.define_metric("model_train/model_best_val_score", step_metric="model_train/epoch")
+
+        wandb.define_metric("model_train_round/env_step")
+        wandb.define_metric("model_train_round/epochs_trained", step_metric="model_train_round/env_step")
+
+
+
     # ------------------- Create Logger -------------------
     logger = mbrl.util.Logger(work_dir)
     logger.register_group(
@@ -298,7 +378,9 @@ def train(
         dynamics_model,
         optim_lr=cfg.overrides.model_lr,
         weight_decay=cfg.overrides.model_wd,
-        logger=None if silent else logger
+        logger=None if silent else logger,
+        track_wandb=cfg.track_wandb,
+        wandb=wandb
     )
 
     # -------------- Create Replay buffer storing transitions of agent in real environment --------------
@@ -444,7 +526,9 @@ def train(
                     env_steps,
                     pink_noise_exploration_mod,
                     xi,
-                    zeta
+                    zeta,
+                    cfg.track_wandb,
+                    wandb
                 )
                 current_border_estimate_list[current_border_count_position] = current_border_estimate_update
                 if current_border_estimate_list_full == False:
@@ -482,7 +566,25 @@ def train(
                 )
                 updates_made += 1
                 if not silent and updates_made % cfg.log_frequency_agent == 0:
+                    if cfg.track_wandb:
+                        wandb.log(
+                            data = {
+                                    "agent_train/step": updates_made,
+                                    "agent_train/batch_reward": logger._groups["train"][0]._meters["batch_reward"].value(),
+                                    "agent_train/batch_reward_min": logger._groups["train"][0]._meters["batch_reward_min"].value(),
+                                    "agent_train/batch_reward_max": logger._groups["train"][0]._meters["batch_reward_max"].value(),
+                                    "agent_train/actor_loss": logger._groups["train"][0]._meters["actor_loss"].value(),
+                                    "agent_train/actor_target_entropy": logger._groups["train"][0]._meters["actor_target_entropy"].value(),
+                                    "agent_train/critic_loss": logger._groups["train"][0]._meters["critic_loss"].value(),
+                                    "agent_train/critic_loss_network1": logger._groups["train"][0]._meters["critic_loss_1"].value(),
+                                    "agent_train/critic_loss_network2": logger._groups["train"][0]._meters["critic_loss_2"].value(),
+                                    "agent_train/alpha_loss": logger._groups["train"][0]._meters["alpha_loss"].value(),
+                                    "agent_train/alpha_value": logger._groups["train"][0]._meters["alpha_value"].value(),
+                                    "agent_train/actor_entropy": logger._groups["train"][0]._meters["actor_entropy"].value()
+                                    }
+                        )
                     logger.dump(updates_made, save=True)
+
 
             # ------ Epoch ended (evaluate and save model) ------
 
@@ -500,6 +602,11 @@ def train(
                         "rollout_length": max_rollout_length,
                     },
                 )
+                if cfg.track_wandb:
+                    wandb.log(data={
+                    "agent_eval/env_step": env_steps,
+                    "agent_eval/episode_reward": avg_reward,
+                })
                 if save_video:
                     video_recorder.save(f"{epoch}.mp4")
                 if avg_reward > best_eval_reward:

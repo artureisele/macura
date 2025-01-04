@@ -11,9 +11,10 @@ device: "cuda:0"
 log_frequency_agent: 1000
 save_video: false
 debug_mode: false
-
+track_wandb: true
+wandb_project: "Macura DMC"
 # Name of Experiment series (used as folder name to store results)
-experiment: experiment_name
+experiment: Hopper Hop
 root_dir: "./exp"
 hydra:
   run:
