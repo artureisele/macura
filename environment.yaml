@@ -236,6 +236,9 @@ dependencies:
       - cycler==0.12.1
       - cython==0.29.37
       - distlib==0.3.8
+      - dm-control==1.0.26
+      - dm-env==1.6
+      - dm-tree==0.1.8
       - docker-pycreds==0.4.0
       - etils==1.9.2
       - farama-notifications==0.0.4
@@ -254,6 +257,8 @@ dependencies:
       - inflection==0.5.1
       - iniconfig==2.0.0
       - kiwisolver==1.4.5
+      - labmaze==1.0.6
+      - lxml==5.3.0
       - markdown==3.6
       - matplotlib==3.9.2
       - mujoco==3.2.6
