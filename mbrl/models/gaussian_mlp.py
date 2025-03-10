@@ -14,7 +14,7 @@ from torch.nn import functional as F
 import mbrl.util.math
 
 from .model import Ensemble
-from .util import EnsembleLinearLayer, truncated_normal_init, EnsembleBiasLayer
+from .util import EnsembleLinearLayer, truncated_normal_init
 
 
 class GaussianMLP(Ensemble):
@@ -86,7 +86,7 @@ class GaussianMLP(Ensemble):
         self.ensemble_size = ensemble_size
         self.in_size = in_size
         self.out_size = out_size
-        print(f"Using minumum variance exponent of {minimum_variance_exponent}")
+
         def create_activation():
             if activation_fn_cfg is None:
                 activation_func = nn.SiLU()
@@ -442,3 +442,99 @@ class GaussianMLP(Ensemble):
         chosen_stds = stds_of_all_ensembles[model_indices,list_to_iterate,:]
         return (torch.normal(chosen_means, chosen_stds, generator=rng), model_state,
                 chosen_means, chosen_stds,  means_of_all_ensembles, stds_of_all_ensembles, model_indices)
+
+    def info_sample_1d(
+        self,
+        model_input: torch.Tensor,
+        model_state: Dict[str, torch.Tensor],
+        deterministic: bool = False,
+        rng: Optional[torch.Generator] = None,
+    ) -> Tuple[torch.Tensor, Optional[Dict[str, torch.Tensor]]]:
+        """Samples an output from the model using .
+
+        This method will be used by :class:`ModelEnv` to simulate a transition of the form.
+            outputs_t+1, s_t+1 = sample(model_input_t, s_t), where
+
+            - model_input_t: observation and action at time t, concatenated across axis=1.
+            - s_t: model state at time t (as returned by :meth:`reset()` or :meth:`sample()`.
+            - outputs_t+1: observation and reward at time t+1, concatenated across axis=1.
+
+        The default implementation returns `s_t+1=s_t`.
+
+        Args:
+            model_input (tensor): the observation and action at.
+            model_state (tensor): the model state st. Must contain a key
+                "propagation_indices" to use for uncertainty propagation.
+            deterministic (bool): if ``True``, the model returns a deterministic
+                "sample" (e.g., the mean prediction). Defaults to ``False``.
+            rng (`torch.Generator`, optional): an optional random number generator
+                to use.
+
+        Returns:
+            (tuple): predicted observation, rewards, terminal indicator and model
+                state dictionary. Everything but the observation is optional, and can
+                be returned with value ``None``.
+        """
+        if deterministic or self.deterministic:
+            raise NotImplementedError
+        assert rng is not None
+        means, logvars = self.forward(
+            model_input, use_propagation=False
+        )
+        variances = logvars.exp()
+        fused_var = 1/((1/variances).mean(dim=0))
+        fused_mean = fused_var * ((1/variances)*means).mean(dim=0)
+        
+        deltas = (means - fused_mean.unsqueeze(0))
+        epist_var = (torch.square(deltas)).mean(dim=0) 
+        
+        K = fused_var / (fused_var + epist_var)
+
+        chosen_model = torch.randint(low=0,high=means.shape[0], size=(means.shape[1],), generator=rng, device=self.device)
+        batch_idx =torch.arange(means.shape[1])
+        sample = torch.normal(means[chosen_model, batch_idx, :], torch.sqrt(variances[chosen_model, batch_idx, :]), generator=rng)
+
+        conditional_mean = fused_mean + K * (sample-fused_mean)
+
+        conditional_var = (1-K)*fused_var
+        
+        model_state["fused_var"] = fused_var#[:,dim_idx,dim_idx]
+        model_state["conditional_var"] = conditional_var#[:,dim_idx,dim_idx]
+        model_state["obs_act"] = torch.normal(conditional_mean, torch.sqrt(conditional_var), generator=rng)
+
+        return torch.normal(conditional_mean, torch.sqrt(conditional_var), generator=rng), model_state
+
+        # conditional_sample, lost_ent = full_matrix_prop(means, variances, rng)
+
+        # model_state["lost_ent"] = lost_ent
+
+        # return conditional_sample, model_state
+    
+def full_matrix_prop(means, variances, rng=None):
+    E, B, n = means.shape
+    means_ = means.cpu()
+    variances_ = variances.cpu()
+    fused_var = 1/((1/variances_).mean(dim=0))
+    fused_mean = fused_var * ((1/variances_)*means_).mean(dim=0)
+    deltas = means_ - fused_var.unsqueeze(0)
+    epist_var = (deltas.unsqueeze(-1) @ deltas.unsqueeze(-2)).mean(dim=0)
+    fused_var_extended = torch.diag_embed(fused_var)
+    total_var = fused_var_extended + epist_var
+    K = torch.linalg.solve(total_var, fused_var_extended, left=False)
+    conditional_var = (torch.diag_embed(torch.ones_like(fused_var)) - K) @ fused_var_extended
+    L, Q = torch.linalg.eigh(conditional_var)
+    L[L<1e-12] = 1e-12
+    lost_ent = (0.5*(n*np.log2(2*np.pi*np.exp(1)) + torch.log2(L).sum(axis=-1))-n*np.log2(1e-6))
+    chosen_model = torch.randint(low=0,high=E, size=(B,))
+    batch_idx =torch.arange(B)
+    sample = torch.normal(means[chosen_model, batch_idx, :], torch.sqrt(variances[chosen_model, batch_idx, :]), generator = rng)
+
+    fused_mean = fused_mean.to(sample.device)
+    K = K.to(sample.device)
+    lost_ent = lost_ent.to(sample.device)
+    conditional_mean = fused_mean + (K @ (sample-fused_mean).unsqueeze(-1)).squeeze(-1)
+
+    eps = torch.randn(*(conditional_mean.shape), generator=rng, device=sample.device)
+
+    conditional_sample = conditional_mean + (Q.cuda()@torch.diag_embed(L.cuda().sqrt())@ eps.unsqueeze(-1)).squeeze(-1)
+    return conditional_sample, lost_ent

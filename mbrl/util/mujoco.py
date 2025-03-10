@@ -7,7 +7,6 @@ from typing import Tuple
 import gymnasium as gym
 import gymnasium.wrappers
 import numpy as np
-import sys
 import mbrl.env.mujoco_envs
 import mbrl.planning
 import mbrl.types
@@ -51,7 +50,7 @@ class FreezeMujoco(Freeze):
         self._step_count = 0
 
         if not _is_mujoco_gym_env(env):
-            raise RuntimeError(f"Tried to freeze an unsupported environment {env}.")
+            raise RuntimeError(f"Tried to freeze an unsupported environment {env}")
 
     def __enter__(self):
         self._init_state = (

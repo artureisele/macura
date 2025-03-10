@@ -476,5 +476,3 @@ class Ensemble(Model, abc.ABC):
         variances = logvars.exp()
         stds = torch.sqrt(variances)
         return torch.normal(means, stds, generator=rng), model_state
-
-

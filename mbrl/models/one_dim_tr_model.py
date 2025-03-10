@@ -118,7 +118,7 @@ class OneDTransitionRewardModel(Model):
     def _process_batch(
         self, batch: mbrl.types.TransitionBatch, _as_float: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        obs, action, next_obs, reward, _ ,_= batch.astuple()
+        obs, action, next_obs, reward, _, _ = batch.astuple()
         if self.target_is_delta:
             target_obs = next_obs - obs
             for dim in self.no_delta_list:
@@ -287,7 +287,7 @@ class OneDTransitionRewardModel(Model):
         rewards = preds[:, -1:] if self.learned_rewards else None
         next_model_state["obs"] = next_observs
         return next_observs, rewards, None, next_model_state
-
+    
     def sample_plus_gaussians(
         self,
         act: torch.Tensor,
@@ -346,6 +346,55 @@ class OneDTransitionRewardModel(Model):
         next_model_state["obs"] = next_observs
         return (next_observs, rewards, None, next_model_state, chosen_means, chosen_stds,
                 means_of_all_ensembles,stds_of_all_ensembles,model_indices)
+
+    def info_sample(
+        self,
+        act: torch.Tensor,
+        model_state: Dict[str, torch.Tensor],
+        deterministic: bool = False,
+        rng: Optional[torch.Generator] = None,
+    ) -> Tuple[
+        torch.Tensor,
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[Dict[str, torch.Tensor]],
+    ]:
+        """Samples next observations and rewards from the underlying 1-D model.
+
+        This wrapper assumes that the underlying model's sample method returns a tuple
+        with just one tensor, which concatenates next_observation and reward.
+
+        Args:
+            act (tensor): the action at.
+            model_state (tensor): the model state st.
+            deterministic (bool): if ``True``, the model returns a deterministic
+                "sample" (e.g., the mean prediction). Defaults to ``False``.
+            rng (random number generator): a rng to use for sampling.
+
+        Returns:
+            (tuple of two tensors): predicted next_observation (o_{t+1}) and rewards (r_{t+1}).
+        """
+        obs = model_util.to_tensor(model_state["obs"]).to(self.device)
+        model_in = self._get_model_input(model_state["obs"], act)
+        if not hasattr(self.model, "sample_1d"):
+            raise RuntimeError(
+                "OneDTransitionRewardModel requires wrapped model to define method sample_1d"
+            )
+        preds, next_model_state = self.model.info_sample_1d(
+            model_in, model_state, rng=rng, deterministic=deterministic
+        )
+        next_observs = preds[:, :-1] if self.learned_rewards else preds
+        if self.target_is_delta:
+            tmp_ = next_observs + obs
+            tmp__ = next_model_state["obs_act"][:,:-1] + obs
+            for dim in self.no_delta_list:
+                tmp_[:, dim] = next_observs[:, dim]
+                tmp__[:, dim] = next_model_state["obs_act"][:, dim]
+            next_observs = tmp_
+            next_model_state["obs_act"] = tmp__
+        rewards = preds[:, -1:] if self.learned_rewards else None
+        next_model_state["obs"] = next_observs
+        return next_observs, rewards, None, next_model_state
 
     def reset(
         self, obs: torch.Tensor, rng: Optional[torch.Generator] = None

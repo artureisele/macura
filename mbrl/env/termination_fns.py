@@ -5,11 +5,9 @@
 import math
 
 import torch
+import numpy as np
 
 # TODO remove act from all of these, it's not needed
-
-
-
 def hopper(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
     assert len(next_obs.shape) == 2
 

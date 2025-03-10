@@ -13,6 +13,7 @@ from .replay_buffer import (
     SequenceTransitionIterator,
     SequenceTransitionSampler,
     TransitionIterator,
+    InfoReplayBuffer
 )
 
 

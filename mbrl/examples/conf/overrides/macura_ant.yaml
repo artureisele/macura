@@ -1,4 +1,5 @@
-env: "ant_truncated_obs"
+env: "ant_v5_truncated_obs"
+#"ant_truncated_obs" for original ant
 # term_fn is set automatically by mbrl.util.env.EnvHandler.make_env
 num_steps: 300000
 epoch_length: 1000

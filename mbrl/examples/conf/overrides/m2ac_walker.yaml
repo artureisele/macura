@@ -1,7 +1,6 @@
 env: "gym___Walker2d-v5"
 term_fn: "walker2d"
 
-
 num_steps: 200000
 epoch_length: 1000
 num_elites: 7

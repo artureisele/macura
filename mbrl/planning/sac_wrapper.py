@@ -37,8 +37,6 @@ class SACAgent(Agent):
             batched (bool): if ``True`` signals to the agent that the obs should be interpreted
                 as a batch.
 
-                
-
         Returns:
             (np.ndarray): the action.
         """

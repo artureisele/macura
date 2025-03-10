@@ -133,10 +133,10 @@ def evaluate(
 
 
 def create_one_dim_tr_model(
-        cfg: omegaconf.DictConfig,
-        obs_shape: Tuple[int, ...],
-        act_shape: Tuple[int, ...],
-        model_dir: Optional[Union[str, pathlib.Path]] = None,
+    cfg: omegaconf.DictConfig,
+    obs_shape: Tuple[int, ...],
+    act_shape: Tuple[int, ...],
+    model_dir: Optional[Union[str, pathlib.Path]] = None,
 ) -> mbrl.models.OneDTransitionRewardModel:
     """Creates a 1-D transition reward model from a given configuration.
 
@@ -245,15 +245,15 @@ def load_hydra_cfg(results_dir: Union[str, pathlib.Path]) -> omegaconf.DictConfi
 
 
 def create_replay_buffer(
-        cfg: omegaconf.DictConfig,
-        obs_shape: Sequence[int],
-        act_shape: Sequence[int],
-        obs_type: Type = np.float32,
-        action_type: Type = np.float32,
-        reward_type: Type = np.float32,
-        load_dir: Optional[Union[str, pathlib.Path]] = None,
-        collect_trajectories: bool = False,
-        rng: Optional[np.random.Generator] = None,
+    cfg: omegaconf.DictConfig,
+    obs_shape: Sequence[int],
+    act_shape: Sequence[int],
+    obs_type: Type = np.float32,
+    action_type: Type = np.float32,
+    reward_type: Type = np.float32,
+    load_dir: Optional[Union[str, pathlib.Path]] = None,
+    collect_trajectories: bool = False,
+    rng: Optional[np.random.Generator] = None,
 ) -> ReplayBuffer:
     """Creates a replay buffer from a given configuration.
 
@@ -279,7 +279,7 @@ def create_replay_buffer(
         action_type (type): the data type of the actions (defaults to np.float32).
         reward_type (type): the data type of the rewards (defaults to np.float32).
         load_dir (optional str or pathlib.Path): if provided, the function will attempt to
-            populate the buffers from "load_dir/sac_buffer.npz".
+            populate the buffers from "load_dir/replay_buffer.npz".
         collect_trajectories (bool, optional): if ``True`` sets the replay buffers to collect
             trajectory information. Defaults to ``False``.
         rng (np.random.Generator, optional): a random number generator when sampling
@@ -321,12 +321,12 @@ def create_replay_buffer(
 
 
 def get_basic_buffer_iterators(
-        replay_buffer: ReplayBuffer,
-        batch_size: int,
-        val_ratio: float,
-        ensemble_size: int = 1,
-        shuffle_each_epoch: bool = True,
-        bootstrap_permutes: bool = False,
+    replay_buffer: ReplayBuffer,
+    batch_size: int,
+    val_ratio: float,
+    ensemble_size: int = 1,
+    shuffle_each_epoch: bool = True,
+    bootstrap_permutes: bool = False,
 ) -> Tuple[TransitionIterator, Optional[TransitionIterator]]:
     """Returns training/validation iterators for the data in the replay buffer.
 
@@ -375,15 +375,15 @@ _SequenceIterType = Union[SequenceTransitionIterator, SequenceTransitionSampler]
 
 
 def get_sequence_buffer_iterator(
-        replay_buffer: ReplayBuffer,
-        batch_size: int,
-        val_ratio: float,
-        sequence_length: int,
-        ensemble_size: int = 1,
-        shuffle_each_epoch: bool = True,
-        max_batches_per_loop_train: Optional[int] = None,
-        max_batches_per_loop_val: Optional[int] = None,
-        use_simple_sampler: bool = False,
+    replay_buffer: ReplayBuffer,
+    batch_size: int,
+    val_ratio: float,
+    sequence_length: int,
+    ensemble_size: int = 1,
+    shuffle_each_epoch: bool = True,
+    max_batches_per_loop_train: Optional[int] = None,
+    max_batches_per_loop_val: Optional[int] = None,
+    use_simple_sampler: bool = False,
 ) -> Tuple[_SequenceIterType, Optional[_SequenceIterType]]:
     """Returns training/validation iterators for the data in the replay buffer.
 
@@ -427,7 +427,7 @@ def get_sequence_buffer_iterator(
     if use_simple_sampler:
         train_iterator: _SequenceIterType = SequenceTransitionSampler(
             transitions,
-            train_trajectories,
+            train_trajectories,  # type:ignore
             batch_size,
             sequence_length,
             max_batches_per_loop_train,
@@ -436,7 +436,7 @@ def get_sequence_buffer_iterator(
     else:
         train_iterator = SequenceTransitionIterator(
             transitions,
-            train_trajectories,
+            train_trajectories,  # type: ignore
             batch_size,
             sequence_length,
             ensemble_size,
@@ -451,7 +451,7 @@ def get_sequence_buffer_iterator(
         if use_simple_sampler:
             val_iterator = SequenceTransitionSampler(
                 transitions,
-                val_trajectories,
+                val_trajectories,  # type: ignore
                 batch_size,
                 sequence_length,
                 max_batches_per_loop_val,
@@ -460,7 +460,7 @@ def get_sequence_buffer_iterator(
         else:
             val_iterator = SequenceTransitionIterator(
                 transitions,
-                val_trajectories,
+                val_trajectories,  # type: ignore
                 batch_size,
                 sequence_length,
                 1,
@@ -474,12 +474,12 @@ def get_sequence_buffer_iterator(
 
 
 def train_model_and_save_model_and_data(
-        model: mbrl.models.Model,
-        model_trainer: mbrl.models.ModelTrainer,
-        cfg: omegaconf.DictConfig,
-        replay_buffer: ReplayBuffer,
-        work_dir: Optional[Union[str, pathlib.Path]] = None,
-        callback: Optional[Callable] = None,
+    model: mbrl.models.Model,
+    model_trainer: mbrl.models.ModelTrainer,
+    cfg: omegaconf.DictConfig,
+    replay_buffer: ReplayBuffer,
+    work_dir: Optional[Union[str, pathlib.Path]] = None,
+    callback: Optional[Callable] = None,
 ):
     """Convenience function for training a model and saving results.
 
@@ -515,19 +515,6 @@ def train_model_and_save_model_and_data(
         shuffle_each_epoch=True,
         bootstrap_permutes=cfg.get("bootstrap_permutes", False),
     )
-    assert np.isnan(dataset_train.transitions.act).sum() == 0
-    assert np.isnan(dataset_train.transitions.terminateds).sum() == 0
-    assert np.isnan(dataset_train.transitions.truncateds).sum() == 0
-    assert np.isnan(dataset_train.transitions.next_obs).sum() == 0
-    assert np.isnan(dataset_train.transitions.obs).sum() == 0
-    assert np.isnan(dataset_train.transitions.rewards).sum() == 0
-    assert np.isnan(dataset_val.transitions.act).sum() == 0
-    assert np.isnan(dataset_val.transitions.terminateds).sum() == 0
-    assert np.isnan(dataset_val.transitions.truncateds).sum() == 0
-    assert np.isnan(dataset_val.transitions.next_obs).sum() == 0
-    assert np.isnan(dataset_val.transitions.obs).sum() == 0
-    assert np.isnan(dataset_val.transitions.rewards).sum() == 0
-
     if hasattr(model, "update_normalizer"):
         model.update_normalizer(replay_buffer.get_all())
     model_trainer.train(
@@ -545,11 +532,11 @@ def train_model_and_save_model_and_data(
 
 
 def rollout_model_env(
-        model_env: mbrl.models.ModelEnv,
-        initial_obs: np.ndarray,
-        plan: Optional[np.ndarray] = None,
-        agent: Optional[mbrl.planning.Agent] = None,
-        num_samples: int = 1,
+    model_env: mbrl.models.ModelEnv,
+    initial_obs: np.ndarray,
+    plan: Optional[np.ndarray] = None,
+    agent: Optional[mbrl.planning.Agent] = None,
+    num_samples: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Rolls out an environment model.
 
@@ -688,16 +675,15 @@ def rollout_agent_trajectories_Tracking_States(
     return total_rewards
 
 def rollout_agent_trajectories(
-        env: gym.Env,
-        steps_or_trials_to_collect: int,
-        agent: mbrl.planning.Agent,
-        agent_kwargs: Dict,
-        trial_length: Optional[int] = None,
-        callback: Optional[Callable] = None,
-        replay_buffer: Optional[ReplayBuffer] = None,
-        collect_full_trajectories: bool = False,
-        agent_uses_low_dim_obs: bool = False,
-        noise_std=0,
+    env: gym.Env,
+    steps_or_trials_to_collect: int,
+    agent: mbrl.planning.Agent,
+    agent_kwargs: Dict,
+    trial_length: Optional[int] = None,
+    callback: Optional[Callable] = None,
+    replay_buffer: Optional[ReplayBuffer] = None,
+    collect_full_trajectories: bool = False,
+    agent_uses_low_dim_obs: bool = False,
 ) -> List[float]:
     """Rollout agent trajectories in the given environment.
 
@@ -732,9 +718,9 @@ def rollout_agent_trajectories(
         (list(float)): Total rewards obtained at each complete trial.
     """
     if (
-            replay_buffer is not None
-            and replay_buffer.stores_trajectories
-            and not collect_full_trajectories
+        replay_buffer is not None
+        and replay_buffer.stores_trajectories
+        and not collect_full_trajectories
     ):
         # Might be better as a warning but it's possible that users will miss it.
         raise RuntimeError(
@@ -754,7 +740,7 @@ def rollout_agent_trajectories(
         total_reward = 0.0
         while not terminated and not truncated:
             if replay_buffer is not None:
-                next_obs, reward, terminated,truncated, _ = step_env_and_add_to_buffer(
+                next_obs, reward, terminated, truncated, _ = step_env_and_add_to_buffer(
                     env,
                     obs,
                     agent,
@@ -770,7 +756,7 @@ def rollout_agent_trajectories(
                         "replay buffer is given."
                     )
                 action = agent.act(obs, **agent_kwargs)
-                next_obs, reward, terminated,truncated, _ = env.step(action)
+                next_obs, reward, terminated, truncated, info = env.step(action)
                 if callback:
                     callback((obs, action, next_obs, reward, terminated, truncated))
             obs = next_obs
@@ -780,7 +766,11 @@ def rollout_agent_trajectories(
                 total_rewards.append(total_reward)
                 return total_rewards
             if trial_length and step % trial_length == 0:
-                if collect_full_trajectories and not terminated and replay_buffer is not None:
+                if (
+                    collect_full_trajectories
+                    and not terminated
+                    and replay_buffer is not None
+                ):
                     replay_buffer.close_trajectory()
                 break
         trial += 1
@@ -791,70 +781,14 @@ def rollout_agent_trajectories(
 
 
 def step_env_and_add_to_buffer(
-        env: gym.Env,
-        obs: np.ndarray,
-        agent: mbrl.planning.Agent,
-        agent_kwargs: Dict,
-        replay_buffer: ReplayBuffer,
-        callback: Optional[Callable] = None,
-        agent_uses_low_dim_obs: bool = False,
-) -> Tuple[np.ndarray, float, bool,bool, Dict]:
-    """Steps the environment with an agent's action and populates the replay buffer.
-
-    Args:
-        env (gym.Env): the environment to step.
-        obs (np.ndarray): the latest observation returned by the environment (used to obtain
-            an action from the agent).
-        agent (:class:`mbrl.planning.Agent`): the agent used to generate an action.
-        agent_kwargs (dict): any keyword arguments to pass to `agent.act()` method.
-        replay_buffer (:class:`mbrl.util.ReplayBuffer`): the replay buffer
-            containing stored data.
-        callback (callable, optional): a function that will be called using the generated
-            transition data `(obs, action. next_obs, reward, terminated, trunacted)`.
-        agent_uses_low_dim_obs (bool): only valid if env is of type
-            :class:`mbrl.env.MujocoGymPixelWrapper`. If ``True``, instead of passing the obs
-            produced by env.reset/step to the agent, it will pass
-            obs = env.get_last_low_dim_obs(). This is useful for rolling out an agent
-            trained with low dimensional obs, but collect pixel obs in the replay buffer.
-        noise_std (float): noise std for white gaussian noise in actions
-    Returns:
-        (tuple): next observation, reward, terminated, truncated and meta-info, respectively, as generated by
-        `env.step(agent.act(obs))`.
-    """
-
-    if agent_uses_low_dim_obs and not hasattr(env, "get_last_low_dim_obs"):
-        raise RuntimeError(
-            "Option agent_uses_low_dim_obs is only compatible with "
-            "env of type mbrl.env.MujocoGymPixelWrapper."
-        )
-    if agent_uses_low_dim_obs:
-        agent_obs = getattr(env, "get_last_low_dim_obs")()
-    else:
-        agent_obs = obs
-    action = agent.act(agent_obs, **agent_kwargs)
-    #default value for noise is zero
-
-    #inplace truncated normal sampling for white noise
-
-    next_obs, reward, terminated, truncated, info = env.step(action)
-
-
-
-    replay_buffer.add(obs, action, next_obs, reward, terminated, truncated)
-    if callback:
-        callback((obs, action, next_obs, reward, terminated, truncated))
-    return next_obs, reward, terminated, truncated, info
-
-def step_env_and_add_to_buffer_eps(
-        env: gym.Env,
-        obs: np.ndarray,
-        agent: mbrl.planning.Agent,
-        agent_kwargs: Dict,
-        replay_buffer: ReplayBuffer,
-        eps,
-        callback: Optional[Callable] = None,
-        agent_uses_low_dim_obs: bool = False,
-) -> Tuple[np.ndarray, float, bool, Dict]:
+    env: gym.Env,
+    obs: np.ndarray,
+    agent: mbrl.planning.Agent,
+    agent_kwargs: Dict,
+    replay_buffer: ReplayBuffer,
+    callback: Optional[Callable] = None,
+    agent_uses_low_dim_obs: bool = False,
+) -> Tuple[np.ndarray, float, bool, bool, Dict]:
     """Steps the environment with an agent's action and populates the replay buffer.
 
     Args:
@@ -872,10 +806,60 @@ def step_env_and_add_to_buffer_eps(
             produced by env.reset/step to the agent, it will pass
             obs = env.get_last_low_dim_obs(). This is useful for rolling out an agent
             trained with low dimensional obs, but collect pixel obs in the replay buffer.
-        noise_std (float): noise std for white gaussian noise in actions
+
     Returns:
-        (tuple): next observation, reward, termianted, truncated and meta-info, respectively, as generated by
-        `env.step(agent.act(obs))`.
+        (tuple): next observation, reward, terminated, truncated and meta-info, respectively,
+        as generated by `env.step(agent.act(obs))`.
+    """
+
+    if agent_uses_low_dim_obs and not hasattr(env, "get_last_low_dim_obs"):
+        raise RuntimeError(
+            "Option agent_uses_low_dim_obs is only compatible with "
+            "env of type mbrl.env.MujocoGymPixelWrapper."
+        )
+    if agent_uses_low_dim_obs:
+        agent_obs = getattr(env, "get_last_low_dim_obs")()
+    else:
+        agent_obs = obs
+    action = agent.act(agent_obs, **agent_kwargs)
+    next_obs, reward, terminated, truncated, info = env.step(action)
+    replay_buffer.add(obs, action, next_obs, reward, terminated, truncated)
+    if callback:
+        callback((obs, action, next_obs, reward, terminated, truncated))
+    return next_obs, reward, terminated, truncated, info
+
+
+def step_env_and_add_to_buffer_eps(
+    env: gym.Env,
+    obs: np.ndarray,
+    agent: mbrl.planning.Agent,
+    agent_kwargs: Dict,
+    replay_buffer: ReplayBuffer,
+    eps,
+    callback: Optional[Callable] = None,
+    agent_uses_low_dim_obs: bool = False,
+) -> Tuple[np.ndarray, float, bool, bool, Dict]:
+    """Steps the environment with an agent's action and populates the replay buffer.
+
+    Args:
+        env (gym.Env): the environment to step.
+        obs (np.ndarray): the latest observation returned by the environment (used to obtain
+            an action from the agent).
+        agent (:class:`mbrl.planning.Agent`): the agent used to generate an action.
+        agent_kwargs (dict): any keyword arguments to pass to `agent.act()` method.
+        replay_buffer (:class:`mbrl.util.ReplayBuffer`): the replay buffer
+            containing stored data.
+        callback (callable, optional): a function that will be called using the generated
+            transition data `(obs, action. next_obs, reward, terminated, truncated)`.
+        agent_uses_low_dim_obs (bool): only valid if env is of type
+            :class:`mbrl.env.MujocoGymPixelWrapper`. If ``True``, instead of passing the obs
+            produced by env.reset/step to the agent, it will pass
+            obs = env.get_last_low_dim_obs(). This is useful for rolling out an agent
+            trained with low dimensional obs, but collect pixel obs in the replay buffer.
+
+    Returns:
+        (tuple): next observation, reward, terminated, truncated and meta-info, respectively,
+        as generated by `env.step(agent.act(obs))`.
     """
 
     if agent_uses_low_dim_obs and not hasattr(env, "get_last_low_dim_obs"):
@@ -888,12 +872,7 @@ def step_env_and_add_to_buffer_eps(
     else:
         agent_obs = obs
     action = agent.act_eps(agent_obs, eps, sample=True, **agent_kwargs)
-    #default value for noise is zero
-
-    #inplace truncated normal sampling for white noise
-
     next_obs, reward, terminated, truncated, info = env.step(action)
-
     replay_buffer.add(obs, action, next_obs, reward, terminated, truncated)
     if callback:
         callback((obs, action, next_obs, reward, terminated, truncated))

@@ -1,7 +1,7 @@
 defaults:
-  - algorithm: macura
+  - algorithm: infoprop_dyna
   - dynamics_model: gaussian_mlp_ensemble
-  - overrides: macura_humanoid
+  - overrides: info_cartpole
   - _self_
 
 seed: 42

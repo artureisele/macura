@@ -70,11 +70,10 @@ class QNetwork(nn.Module):
                     module.bias = torch.nn.Parameter((1-network_reset_factor)*module.bias)
 
 #Q Network with Layer normalization
-class QNetworkLN(QNetwork):
+class QNetworkLayerNorm(QNetwork):
     def __init__(self, num_inputs, num_actions, hidden_dim):
-        super(QNetworkLN, self).__init__(num_inputs, num_actions, hidden_dim)
-        self.hidden_dim=hidden_dim
-
+        super(QNetworkLayerNorm, self).__init__(num_inputs, num_actions, hidden_dim)
+        self.hidden_dim = hidden_dim
 
     def forward(self, state, action):
         xu = torch.cat([state, action], 1)
@@ -132,7 +131,7 @@ class GaussianPolicy(nn.Module):
         log_prob = log_prob.sum(1, keepdim=True)
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
         return action, log_prob, mean
-
+    
     def sample_using_eps(self, state, eps):
         mean, log_std = self.forward(state)
         # print(mean.shape, log_std.shape, eps.shape)
@@ -153,10 +152,11 @@ class GaussianPolicy(nn.Module):
         self.action_bias = self.action_bias.to(device)
         return super(GaussianPolicy, self).to(device)
 
-class GaussianPolicyLN(GaussianPolicy):
+class GaussianPolicyLayerNorm(GaussianPolicy):
     def __init__(self, num_inputs, num_actions, hidden_dim, action_space=None):
-        super(GaussianPolicyLN, self).__init__(num_inputs, num_actions, hidden_dim, action_space)
-        self.hidden_dim=hidden_dim
+        super(GaussianPolicyLayerNorm, self).__init__(num_inputs, num_actions, hidden_dim, action_space)
+        self.hidden_dim = hidden_dim
+
     def forward(self, state):
         x = F.relu(F.layer_norm(self.linear1(state),[self.hidden_dim]))
         x = F.relu(F.layer_norm(self.linear2(x),[self.hidden_dim]))
@@ -204,10 +204,9 @@ class DeterministicPolicy(nn.Module):
         self.action_bias = self.action_bias.to(device)
         self.noise = self.noise.to(device)
         return super(DeterministicPolicy, self).to(device)
-
-class DeterministicPolicyLN(DeterministicPolicy):
+class DeterministicPolicyLayerNorm(DeterministicPolicy):
     def __init__(self, num_inputs, num_actions, hidden_dim, action_space=None):
-        super(DeterministicPolicyLN, self).__init__(num_inputs, num_actions, hidden_dim, action_space)
+        super(DeterministicPolicyLayerNorm, self).__init__(num_inputs, num_actions, hidden_dim, action_space)
         self.hidden_dim=hidden_dim
     def forward(self, state):
         x = F.relu(F.layer_norm(self.linear1(state),[self.hidden_dim]))
